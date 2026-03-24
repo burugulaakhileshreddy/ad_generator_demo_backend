@@ -1,0 +1,27 @@
+# Virtual environment
+.venv/
+
+# Secrets
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# IDE
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated storage folders
+storage/audio/
+storage/images/
+storage/temp/
+storage/user_uploads/
+storage/videos/
+storage/static/
+storage/music/
