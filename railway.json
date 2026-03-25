@@ -1,7 +1,7 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "deploy": {
-    "buildCommand": "pip install -r requirements.txt && playwright install --with-deps chromium",
-    "startCommand": "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    "buildCommand": "pip install -r requirements.txt && PLAYWRIGHT_BROWSERS_PATH=/app/.playwright python -m playwright install chromium",
+    "startCommand": "PLAYWRIGHT_BROWSERS_PATH=/app/.playwright uvicorn app.main:app --host 0.0.0.0 --port $PORT"
   }
 }
