@@ -25,8 +25,8 @@ load_dotenv()
 # CONSTANTS
 # ---------------------------------------------------------
 
-FRAME_W = 1920
-FRAME_H = 1080
+FRAME_W = 854
+FRAME_H = 480
 
 PREVIEW_W = 900
 PREVIEW_H = 420
