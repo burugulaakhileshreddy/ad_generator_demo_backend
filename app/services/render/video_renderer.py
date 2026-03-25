@@ -21,8 +21,9 @@ from app.services.storage_service import (
 # CONSTANTS
 # ---------------------------------------------------------
 
-FRAME_W = 1920
-FRAME_H = 1080
+# Final output resolution
+FRAME_W = 854
+FRAME_H = 480
 
 PREVIEW_W = 900
 PREVIEW_H = 420
@@ -38,10 +39,34 @@ PHONE_ICON = os.path.join(ICON_DIR, "phone.png").replace("\\", "/")
 GLOBE_ICON = os.path.join(ICON_DIR, "globe.png").replace("\\", "/")
 SOCIAL_ICON = os.path.join(ICON_DIR, "social.png").replace("\\", "/")
 
+# Base design size used by original working renderer
+BASE_FRAME_W = 1920
+BASE_FRAME_H = 1080
+
+SCALE_X = FRAME_W / BASE_FRAME_W
+SCALE_Y = FRAME_H / BASE_FRAME_H
+SCALE = min(SCALE_X, SCALE_Y)
+
 print("LOCATION_ICON:", LOCATION_ICON, os.path.exists(LOCATION_ICON))
 print("PHONE_ICON:", PHONE_ICON, os.path.exists(PHONE_ICON))
 print("GLOBE_ICON:", GLOBE_ICON, os.path.exists(GLOBE_ICON))
 print("SOCIAL_ICON:", SOCIAL_ICON, os.path.exists(SOCIAL_ICON))
+
+
+# ---------------------------------------------------------
+# SCALE HELPERS
+# ---------------------------------------------------------
+
+def _sx(value: int) -> int:
+    return max(1, int(round(value * SCALE_X)))
+
+
+def _sy(value: int) -> int:
+    return max(1, int(round(value * SCALE_Y)))
+
+
+def _ss(value: int) -> int:
+    return max(1, int(round(value * SCALE)))
 
 
 # ---------------------------------------------------------
@@ -96,6 +121,7 @@ def _get_audio_duration(path: Optional[str]) -> Optional[float]:
 # ---------------------------------------------------------
 
 def _pick_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+    scaled_size = _ss(size)
     candidates = []
 
     if bold:
@@ -116,7 +142,7 @@ def _pick_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     for path in candidates:
         if os.path.exists(path):
             try:
-                return ImageFont.truetype(path, size=size)
+                return ImageFont.truetype(path, size=scaled_size)
             except Exception:
                 pass
 
@@ -192,7 +218,7 @@ def _paste_with_shadow(
         fill=(0, 0, 0, shadow_alpha)
     )
 
-    shadow = shadow.resize((shadow.width // 2, shadow.height // 2), Image.LANCZOS)
+    shadow = shadow.resize((max(1, shadow.width // 2), max(1, shadow.height // 2)), Image.LANCZOS)
     shadow = shadow.resize((overlay.width + shadow_expand * 2, overlay.height + shadow_expand * 2), Image.LANCZOS)
 
     base.alpha_composite(
@@ -244,7 +270,7 @@ def _draw_text_with_shadow(
     shadow_offsets: List[Tuple[int, int]] = None
 ):
     if shadow_offsets is None:
-        shadow_offsets = [(1, 1), (0, 2), (0, 4)]
+        shadow_offsets = [(_ss(1), _ss(1)), (0, _ss(2)), (0, _ss(4))]
 
     x, y = xy
     for dx, dy in shadow_offsets:
@@ -312,12 +338,10 @@ def _build_qr_card(qr_value: str, size: int) -> Image.Image:
     card_w = size + pad * 2
     card_h = size + pad * 2
 
-    card = Image.new("RGBA", (card_w, card_h), (255, 255, 255, 255))
     mask = _rounded_rect_mask((card_w, card_h), radius=max(8, int(size * 0.08)))
-    rounded = Image.new("RGBA", (card_w, card_h), (255, 255, 255, 255))
-    rounded.putalpha(mask)
+    card = Image.new("RGBA", (card_w, card_h), (255, 255, 255, 255))
+    card.putalpha(mask)
 
-    card = rounded
     card.alpha_composite(qr_img, (pad, pad))
     return card
 
@@ -342,28 +366,28 @@ def _build_slide_frame(
     canvas.alpha_composite(bg, (0, 0))
 
     if qr_enabled and qr_url:
-        qr_size = 172
+        qr_size = _ss(172)
         qr_card = _build_qr_card(qr_url, qr_size)
 
-        qr_x = FRAME_W - qr_card.width - 34
-        qr_y = 34
+        qr_x = FRAME_W - qr_card.width - _sx(34)
+        qr_y = _sy(34)
 
         _paste_with_shadow(
             canvas,
             qr_card,
             qr_x,
             qr_y,
-            shadow_offset=(0, 10),
+            shadow_offset=(0, _sy(10)),
             shadow_alpha=60,
-            shadow_expand=18,
-            shadow_radius=16
+            shadow_expand=_ss(18),
+            shadow_radius=_ss(16)
         )
 
     if banner_enabled and banner_data:
         draw = ImageDraw.Draw(canvas)
 
-        left_x = 34
-        bottom_y = FRAME_H - 42
+        left_x = _sx(34)
+        bottom_y = FRAME_H - _sy(42)
 
         logo_src = _normalize_local_path(banner_data.get("logo"))
         logo_img = _safe_open_rgba(logo_src)
@@ -373,21 +397,21 @@ def _build_slide_frame(
         phone = (banner_data.get("phone") or "").strip()
         website = (banner_data.get("website") or "").strip()
 
-        logo_box_w = 188
-        logo_box_h = 188
+        logo_box_w = _sx(188)
+        logo_box_h = _sy(188)
 
-        info_x = left_x + (logo_box_w + 26 if logo_img else 0)
-        info_y = bottom_y - 152
+        info_x = left_x + (logo_box_w + _sx(26) if logo_img else 0)
+        info_y = bottom_y - _sy(152)
 
         title_font = _pick_font(46, bold=True)
         meta_font = _pick_font(28, bold=False)
 
         if logo_img:
             logo_card = Image.new("RGBA", (logo_box_w, logo_box_h), (255, 255, 255, 255))
-            logo_mask = _rounded_rect_mask((logo_box_w, logo_box_h), radius=10)
+            logo_mask = _rounded_rect_mask((logo_box_w, logo_box_h), radius=_ss(10))
             logo_card.putalpha(logo_mask)
 
-            contained_logo = _contain_resize(logo_img, logo_box_w, logo_box_h, padding=14)
+            contained_logo = _contain_resize(logo_img, logo_box_w, logo_box_h, padding=_ss(14))
             logo_card.alpha_composite(contained_logo, (0, 0))
 
             _paste_with_shadow(
@@ -395,10 +419,10 @@ def _build_slide_frame(
                 logo_card,
                 left_x,
                 bottom_y - logo_box_h,
-                shadow_offset=(0, 12),
+                shadow_offset=(0, _sy(12)),
                 shadow_alpha=58,
-                shadow_expand=20,
-                shadow_radius=14
+                shadow_expand=_ss(20),
+                shadow_radius=_ss(14)
             )
 
         meta_max_w = int(FRAME_W * 0.45)
@@ -412,20 +436,20 @@ def _build_slide_frame(
                 title_font,
                 fill=(255, 255, 255, 255),
                 shadow_fill=(0, 0, 0, 140),
-                shadow_offsets=[(0, 2), (0, 5), (1, 1)]
+                shadow_offsets=[(0, _ss(2)), (0, _ss(5)), (_ss(1), _ss(1))]
             )
 
-        meta_y = info_y + 62
-        line_gap = 12
-        icon_size = 24
-        text_gap = 10
-        row_height = 34 + line_gap
+        meta_y = info_y + _sy(62)
+        line_gap = _sy(12)
+        icon_size = _ss(24)
+        text_gap = _sx(10)
+        row_height = _sy(34) + line_gap
         icon_opacity = 255
 
         if address:
             text_x = info_x + icon_size + text_gap
             text_y = meta_y
-            icon_y = meta_y + 2
+            icon_y = meta_y + _sy(2)
 
             _paste_icon(canvas, LOCATION_ICON, info_x, icon_y, size=icon_size, opacity=icon_opacity)
 
@@ -443,7 +467,7 @@ def _build_slide_frame(
         if phone:
             text_x = info_x + icon_size + text_gap
             text_y = meta_y
-            icon_y = meta_y + 2
+            icon_y = meta_y + _sy(2)
 
             _paste_icon(canvas, PHONE_ICON, info_x, icon_y, size=icon_size, opacity=icon_opacity)
 
@@ -461,7 +485,7 @@ def _build_slide_frame(
         if website:
             text_x = info_x + icon_size + text_gap
             text_y = meta_y
-            icon_y = meta_y + 2
+            icon_y = meta_y + _sy(2)
 
             _paste_icon(canvas, GLOBE_ICON, info_x, icon_y, size=icon_size, opacity=icon_opacity)
 
@@ -504,7 +528,7 @@ def _build_end_screen_frame(end_screen: dict, frame_index: int) -> Optional[str]
     social_font = _pick_font(28, bold=False)
 
     center_x = FRAME_W // 2
-    y = 140
+    y = _sy(140)
 
     if offer:
         offer_w, offer_h = _text_size(draw, offer, offer_font)
@@ -514,13 +538,13 @@ def _build_end_screen_frame(end_screen: dict, frame_index: int) -> Optional[str]
             font=offer_font,
             fill=(147, 51, 234, 255)
         )
-        y += offer_h + 42
+        y += offer_h + _sy(42)
 
     if logo_img:
-        logo_box = _contain_resize(logo_img, 260, 150, padding=0)
+        logo_box = _contain_resize(logo_img, _sx(260), _sy(150), padding=0)
         lx = center_x - logo_box.width // 2
         canvas.alpha_composite(logo_box, (lx, y))
-        y += 150 + 34
+        y += _sy(150) + _sy(34)
 
     if company_name:
         company_w, company_h = _text_size(draw, company_name, company_font)
@@ -530,22 +554,22 @@ def _build_end_screen_frame(end_screen: dict, frame_index: int) -> Optional[str]
             font=company_font,
             fill=(17, 24, 39, 255)
         )
-        y += company_h + 18
+        y += company_h + _sy(18)
 
-    info_block_max_w = 1200
-    icon_size = 28
-    text_gap = 14
+    info_block_max_w = _sx(1200)
+    icon_size = _ss(28)
+    text_gap = _sx(14)
     icon_to_text_total = icon_size + text_gap
 
     if address:
         wrapped = _wrap_text_to_width(draw, address, body_font, info_block_max_w - icon_to_text_total)
-        bbox = draw.multiline_textbbox((0, 0), wrapped, font=body_font, spacing=8, align="left")
+        bbox = draw.multiline_textbbox((0, 0), wrapped, font=body_font, spacing=_sy(8), align="left")
         text_w = bbox[2] - bbox[0]
         text_h = bbox[3] - bbox[1]
 
         block_w = icon_to_text_total + text_w
         start_x = center_x - (block_w // 2)
-        icon_y = y + 4
+        icon_y = y + _sy(4)
         text_x = start_x + icon_to_text_total
 
         _paste_icon(canvas, LOCATION_ICON, start_x, icon_y, size=icon_size, opacity=255)
@@ -555,16 +579,16 @@ def _build_end_screen_frame(end_screen: dict, frame_index: int) -> Optional[str]
             wrapped,
             font=body_font,
             fill=(107, 114, 128, 255),
-            spacing=8,
+            spacing=_sy(8),
             align="left"
         )
-        y += text_h + 16
+        y += text_h + _sy(16)
 
     if phone:
         phone_w, phone_h = _text_size(draw, phone, body_font)
         block_w = icon_to_text_total + phone_w
         start_x = center_x - (block_w // 2)
-        icon_y = y + 4
+        icon_y = y + _sy(4)
         text_x = start_x + icon_to_text_total
 
         _paste_icon(canvas, PHONE_ICON, start_x, icon_y, size=icon_size, opacity=255)
@@ -575,13 +599,13 @@ def _build_end_screen_frame(end_screen: dict, frame_index: int) -> Optional[str]
             font=body_font,
             fill=(79, 70, 229, 255)
         )
-        y += phone_h + 12
+        y += phone_h + _sy(12)
 
     if website:
         web_w, web_h = _text_size(draw, website, body_font)
         block_w = icon_to_text_total + web_w
         start_x = center_x - (block_w // 2)
-        icon_y = y + 4
+        icon_y = y + _sy(4)
         text_x = start_x + icon_to_text_total
 
         _paste_icon(canvas, GLOBE_ICON, start_x, icon_y, size=icon_size, opacity=255)
@@ -600,13 +624,13 @@ def _build_end_screen_frame(end_screen: dict, frame_index: int) -> Optional[str]
             social_w, social_h = _text_size(draw, social_text, social_font)
             block_w = icon_to_text_total + social_w
             start_x = center_x - (block_w // 2)
-            icon_y = FRAME_H - 120 + 2
+            icon_y = FRAME_H - _sy(120) + _sy(2)
             text_x = start_x + icon_to_text_total
 
-            _paste_icon(canvas, SOCIAL_ICON, start_x, icon_y, size=24, opacity=255)
+            _paste_icon(canvas, SOCIAL_ICON, start_x, icon_y, size=_ss(24), opacity=255)
 
             draw.text(
-                (text_x, FRAME_H - 120),
+                (text_x, FRAME_H - _sy(120)),
                 social_text,
                 font=social_font,
                 fill=(107, 114, 128, 255)

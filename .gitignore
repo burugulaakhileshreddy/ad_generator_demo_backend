@@ -25,3 +25,9 @@ storage/user_uploads/
 storage/videos/
 storage/static/
 storage/music/
+
+# Dummy Files
+dummy-files/script_service_dummy
+dummy-files/voice_service_dummy
+dummy-files/video-renderer_1920_1080
+dummy-files/voice_service_5_voices
