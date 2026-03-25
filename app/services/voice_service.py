@@ -1,4 +1,3 @@
-
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -18,7 +17,10 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 VOICES = [
     ("v1", "alloy"),
-    ("v2", "nova")
+    ("v2", "verse"),
+    ("v3", "nova"),
+    ("v4", "echo"),
+    ("v5", "onyx")
 ]
 
 
@@ -63,7 +65,7 @@ def _generate_single_voice_result(script_text: str, voice_name: str, voice: str,
 def generate_all_voices(script_text: str, task_id: int, variant_id: int):
     results_by_name = {}
 
-    max_workers = min(len(VOICES), 2)
+    max_workers = min(len(VOICES), 5)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {}
