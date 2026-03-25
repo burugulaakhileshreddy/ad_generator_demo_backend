@@ -2,12 +2,10 @@
 
 import os
 import subprocess
-from functools import lru_cache
 from typing import Optional, Tuple, List
 
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
-from dotenv import load_dotenv
 
 from sqlalchemy.orm import Session
 
@@ -18,15 +16,13 @@ from app.services.storage_service import (
     materialize_asset_to_local
 )
 
-load_dotenv()
-
 
 # ---------------------------------------------------------
 # CONSTANTS
 # ---------------------------------------------------------
 
-FRAME_W = 854
-FRAME_H = 480
+FRAME_W = 1920
+FRAME_H = 1080
 
 PREVIEW_W = 900
 PREVIEW_H = 420
@@ -37,27 +33,15 @@ TRANSITION_DURATION = 0.6
 TEMP_RENDER_DIR = "storage/temp/render_frames"
 ICON_DIR = "storage/static/icons"
 
-LOCATION_ICON = os.getenv(
-    "LOCATION_ICON_URL",
-    os.path.join(ICON_DIR, "location.png").replace("\\", "/")
-)
-PHONE_ICON = os.getenv(
-    "PHONE_ICON_URL",
-    os.path.join(ICON_DIR, "phone.png").replace("\\", "/")
-)
-GLOBE_ICON = os.getenv(
-    "GLOBE_ICON_URL",
-    os.path.join(ICON_DIR, "globe.png").replace("\\", "/")
-)
-SOCIAL_ICON = os.getenv(
-    "SOCIAL_ICON_URL",
-    os.path.join(ICON_DIR, "social.png").replace("\\", "/")
-)
+LOCATION_ICON = os.path.join(ICON_DIR, "location.png").replace("\\", "/")
+PHONE_ICON = os.path.join(ICON_DIR, "phone.png").replace("\\", "/")
+GLOBE_ICON = os.path.join(ICON_DIR, "globe.png").replace("\\", "/")
+SOCIAL_ICON = os.path.join(ICON_DIR, "social.png").replace("\\", "/")
 
-print("LOCATION_ICON:", LOCATION_ICON)
-print("PHONE_ICON:", PHONE_ICON)
-print("GLOBE_ICON:", GLOBE_ICON)
-print("SOCIAL_ICON:", SOCIAL_ICON)
+print("LOCATION_ICON:", LOCATION_ICON, os.path.exists(LOCATION_ICON))
+print("PHONE_ICON:", PHONE_ICON, os.path.exists(PHONE_ICON))
+print("GLOBE_ICON:", GLOBE_ICON, os.path.exists(GLOBE_ICON))
+print("SOCIAL_ICON:", SOCIAL_ICON, os.path.exists(SOCIAL_ICON))
 
 
 # ---------------------------------------------------------
@@ -72,13 +56,6 @@ def _normalize_local_path(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
     return materialize_asset_to_local(value)
-
-
-@lru_cache(maxsize=32)
-def _resolve_icon_path(icon_ref: Optional[str]) -> Optional[str]:
-    if not icon_ref:
-        return None
-    return materialize_asset_to_local(icon_ref)
 
 
 def _safe_open_rgba(path: Optional[str]) -> Optional[Image.Image]:
@@ -228,14 +205,12 @@ def _paste_with_shadow(
 def _paste_icon(base: Image.Image, icon_path: str, x: int, y: int, size: int = 24, opacity: int = 255):
     print("Trying icon:", icon_path)
 
-    resolved_icon_path = _resolve_icon_path(icon_path)
-
-    if not resolved_icon_path or not os.path.exists(resolved_icon_path):
+    if not os.path.exists(icon_path):
         print("Icon not found:", icon_path)
         return
 
     try:
-        icon = Image.open(resolved_icon_path).convert("RGBA")
+        icon = Image.open(icon_path).convert("RGBA")
         icon = icon.resize((size, size), Image.LANCZOS)
 
         if opacity < 255:
@@ -244,7 +219,7 @@ def _paste_icon(base: Image.Image, icon_path: str, x: int, y: int, size: int = 2
             icon.putalpha(alpha)
 
         base.alpha_composite(icon, (x, y))
-        print("Icon pasted:", resolved_icon_path)
+        print("Icon pasted:", icon_path)
 
     except Exception as e:
         print("Icon paste failed:", icon_path, e)
