@@ -16,6 +16,30 @@ MAX_INTERNAL_PAGES_FAST = 1
 
 
 # ---------------------------------------------------------
+# URL NORMALIZATION
+# ---------------------------------------------------------
+
+def normalize_input_url(url: str) -> str:
+    if not url:
+        raise ValueError("URL is required")
+
+    cleaned = url.strip()
+
+    if not cleaned:
+        raise ValueError("URL is required")
+
+    if not cleaned.startswith(("http://", "https://")):
+        cleaned = "https://" + cleaned
+
+    parsed = urlparse(cleaned)
+
+    if not parsed.netloc:
+        raise ValueError(f"Invalid URL: {url}")
+
+    return cleaned
+
+
+# ---------------------------------------------------------
 # BUSINESS TEXT EXTRACTION
 # ---------------------------------------------------------
 
@@ -419,6 +443,8 @@ def scrape_business_core(url: str, task_id: int):
     print("[SCRAPER] Starting business core scrape")
 
     try:
+        url = normalize_input_url(url)
+
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
@@ -429,7 +455,7 @@ def scrape_business_core(url: str, task_id: int):
             html = page.content()
             soup = BeautifulSoup(html, "html.parser")
 
-            parsed = urlparse(url)
+            parsed = urlparse(page.url)
             base_url = f"{parsed.scheme}://{parsed.netloc}"
 
             business_name = soup.title.text.strip() if soup.title else None
@@ -465,6 +491,8 @@ def scrape_image_assets(url: str, task_id: int, top_links=None):
     print("[SCRAPER] Starting image asset scrape")
 
     try:
+        url = normalize_input_url(url)
+
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
@@ -495,7 +523,7 @@ def scrape_image_assets(url: str, task_id: int, top_links=None):
             except Exception:
                 pass
 
-            parsed = urlparse(url)
+            parsed = urlparse(page.url)
             base_url = f"{parsed.scheme}://{parsed.netloc}"
 
             all_images = set(homepage_images)
@@ -539,6 +567,8 @@ def scrape_website(url: str, task_id: int):
     print("Starting scrape")
 
     try:
+        url = normalize_input_url(url)
+
         core_result = scrape_business_core(url, task_id)
 
         if not core_result:
