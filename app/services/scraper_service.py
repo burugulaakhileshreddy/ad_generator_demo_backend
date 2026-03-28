@@ -615,3 +615,28 @@ def normalize_urls(images, base_url):
         normalized.append(img)
 
     return list(dict.fromkeys(normalized))
+
+
+def normalize_url_for_matching(url: str) -> str:
+    if not url:
+        return ""
+
+    cleaned = str(url).strip().lower()
+
+    if not cleaned:
+        return ""
+
+    if not cleaned.startswith(("http://", "https://")):
+        cleaned = "https://" + cleaned
+
+    parsed = urlparse(cleaned)
+
+    host = (parsed.netloc or "").strip().lower()
+
+    if not host:
+        return ""
+
+    if host.startswith("www."):
+        host = host[4:]
+
+    return host

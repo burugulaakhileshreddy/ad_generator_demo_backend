@@ -6,17 +6,17 @@ User enters URL
     ↓
 Task created
     ↓
-Business core scraped
+Reuse check (last 30 days)
     ↓
-Script generated
-    ↓
-Voices generated
-    ↓
-Image assets scraped in parallel
-    ↓
-Scraped data stored
-    ↓
-First ad variant created
+If reusable:
+    Clone previous scraped/script/voice data
+Else:
+    Business core scraped
+    Script generated
+    Voices generated
+    Image assets scraped in parallel
+    Scraped data stored
+    First ad variant created
     ↓
 Frontend editor customizes assets
     ↓
@@ -69,6 +69,10 @@ from app.services.upload_service import save_uploaded_image
 from app.services.variant_generation_service import (
     create_system_generated_variant,
     create_custom_generated_variant
+)
+from app.services.task_reuse_service import (
+    find_reusable_task,
+    clone_reusable_task_data
 )
 
 # Router
@@ -199,14 +203,75 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_task)
 
+    # -----------------------------------------------------
+    # REUSE CHECK
+    # -----------------------------------------------------
+
+    try:
+        reusable_task = find_reusable_task(
+            url=new_task.url,
+            db=db,
+            within_days=30,
+            exclude_task_id=new_task.id
+        )
+    except Exception as e:
+        print("Task reuse check failed:", e)
+        reusable_task = None
+
+    if reusable_task:
+        try:
+            clone_result = clone_reusable_task_data(
+                source_task_id=reusable_task.id,
+                new_task_id=new_task.id,
+                db=db
+            )
+
+            if clone_result:
+                variant_record = get_latest_variant(new_task.id, db)
+                scraped_data = get_scraped_data_for_task(new_task.id, db)
+
+                if variant_record and scraped_data:
+                    response = build_variant_assets_response(
+                        task=new_task,
+                        scraped_data=scraped_data,
+                        variant_record=variant_record,
+                        db=db
+                    )
+
+                    response["reused"] = True
+                    response["reused_from_task_id"] = reusable_task.id
+
+                    print(
+                        f"[TASK {new_task.id}] Reused assets from task "
+                        f"{reusable_task.id} for variant {variant_record.id}"
+                    )
+
+                    return response
+
+        except Exception as e:
+            print("Task reuse clone failed, continuing with fresh generation:", e)
+            db.rollback()
+
+    # -----------------------------------------------------
+    # FRESH GENERATION FLOW
+    # -----------------------------------------------------
+
     try:
         core_result = scrape_business_core(new_task.url, new_task.id)
     except Exception as e:
         print("Business core scrape crashed:", e)
-        return {"error": "Business core scrape crashed", "task_id": new_task.id, "url": new_task.url}
+        return {
+            "error": "Business core scrape crashed",
+            "task_id": new_task.id,
+            "url": new_task.url
+        }
 
     if not core_result:
-        return {"error": "Business core scraping failed", "task_id": new_task.id, "url": new_task.url}
+        return {
+            "error": "Business core scraping failed",
+            "task_id": new_task.id,
+            "url": new_task.url
+        }
 
     variant_record = AdVariant(
         task_id=new_task.id
@@ -299,7 +364,8 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db)):
         "script": script_record.script if script_record else "",
         "images": serialize_images(images),
         "voices": voices,
-        "music": music
+        "music": music,
+        "reused": False
     }
 
 
