@@ -119,6 +119,90 @@ def create_task_directory(task_id: int):
     return task_path
 
 
+def clear_task_image_directory(task_id: int):
+    """
+    Clears local image directory for a task completely,
+    then recreates it empty.
+    """
+    task_path = os.path.join(BASE_STORAGE_PATH, f"task_{task_id}")
+
+    if os.path.exists(task_path):
+        shutil.rmtree(task_path, ignore_errors=True)
+
+    os.makedirs(task_path, exist_ok=True)
+    return task_path
+
+
+def _list_supabase_prefix_files(bucket: str, prefix: str):
+    """
+    Lists files under a prefix recursively in Supabase storage.
+    """
+    if not SUPABASE_CLIENT:
+        return []
+
+    all_paths = []
+
+    def walk(path_prefix: str):
+        try:
+            items = SUPABASE_CLIENT.storage.from_(bucket).list(path_prefix)
+        except Exception as e:
+            print(f"[STORAGE] Failed listing Supabase prefix '{path_prefix}': {e}")
+            return
+
+        if not items:
+            return
+
+        for item in items:
+            name = item.get("name")
+            if not name:
+                continue
+
+            nested_id = item.get("id")
+            item_path = f"{path_prefix}/{name}" if path_prefix else name
+
+            # Supabase list may return folders and files;
+            # folders usually do not have metadata like id/updated_at in the same way.
+            if nested_id:
+                all_paths.append(item_path)
+            else:
+                walk(item_path)
+
+    walk(prefix)
+    return all_paths
+
+
+def clear_task_images_supabase(task_id: int):
+    """
+    Clears all image objects for a task under:
+    images/task_<task_id>/...
+    """
+    if not SUPABASE_CLIENT:
+        return
+
+    prefix = f"task_{task_id}"
+    paths_to_remove = _list_supabase_prefix_files(SUPABASE_BUCKET_IMAGES, prefix)
+
+    if not paths_to_remove:
+        return
+
+    try:
+        SUPABASE_CLIENT.storage.from_(SUPABASE_BUCKET_IMAGES).remove(paths_to_remove)
+        print(f"[STORAGE] Cleared Supabase image prefix: {prefix} ({len(paths_to_remove)} files)")
+    except Exception as e:
+        print(f"[STORAGE] Failed clearing Supabase image prefix '{prefix}': {e}")
+
+
+def clear_task_image_storage(task_id: int):
+    """
+    Clears task image storage for both local and Supabase modes.
+    Call this ONCE at the start of a fresh scrape before logo/images are saved.
+    """
+    if STORAGE_PROVIDER == "supabase":
+        clear_task_images_supabase(task_id)
+    else:
+        clear_task_image_directory(task_id)
+
+
 def create_audio_directory(task_id: int, variant_id: int):
     variant_path = os.path.join(
         AUDIO_BASE_PATH,
